@@ -100,6 +100,18 @@ tailwind.config = { theme: { extend: {
     <div class="tarjeta"><h2 class="mb-1 text-lg font-bold">Stock</h2><ul id="stock-d"></ul></div>
   </section>
 
+  <details class="tarjeta">
+    <summary class="cursor-pointer text-lg font-bold">Agregar producto nuevo</summary>
+    <form id="f-nuevo" data-accion="nuevo_producto" class="mt-3 grid gap-3 sm:grid-cols-2">
+      <div class="sm:col-span-2"><label for="n-nombre">Nombre</label><input id="n-nombre" name="nombre" class="campo" placeholder="Ej: Perfil PVC cielorraso 6 m" required></div>
+      <div><label for="n-tipo">Tipo</label>
+        <select id="n-tipo" name="tipo" class="campo"><option value="CAJA">Caja (se cuenta por unidad)</option><option value="PERFIL">Perfil / barra (se corta en metros)</option></select></div>
+      <div id="n-largo-box" class="hidden"><label for="n-largo">Largo de la barra (m)</label><input id="n-largo" name="largo" type="number" min="0.1" step="0.01" inputmode="decimal" class="campo" placeholder="6, 4 o 3"></div>
+      <div><label for="n-stock">Stock inicial en depósito</label><input id="n-stock" name="stock" type="number" min="0" step="1" inputmode="numeric" value="0" class="campo"></div>
+      <div class="self-end"><button class="btn">Crear producto</button></div>
+    </form>
+  </details>
+
   <section class="tarjeta"><h2 class="mb-1 text-lg font-bold">Últimos movimientos</h2><ul id="movs"></ul></section>
 </main>
 
@@ -209,8 +221,14 @@ document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
 document.querySelectorAll('form').forEach(f => f.addEventListener('submit', async e => {
   e.preventDefault();
   const d = Object.fromEntries(new FormData(f)); d.accion = f.dataset.accion;
-  if (await enviar(d)) { f.reset(); barra(); }
+  if (await enviar(d)) { f.reset(); barra(); tipoNuevo(); }
 }));
+function tipoNuevo() {
+  const perfil = $('#n-tipo').value === 'PERFIL';
+  $('#n-largo-box').classList.toggle('hidden', !perfil);
+  $('#n-largo').required = perfil;
+}
+$('#n-tipo').onchange = tipoNuevo;
 $('#c-prod').onchange = barra; $('#c-metros').oninput = barra;
 
 try { $('#empleado').value = localStorage.getItem('empleado') || ''; } catch (e) {}
