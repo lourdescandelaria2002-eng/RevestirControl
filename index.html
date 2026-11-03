@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revestir · Control de stock</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { sans: ['"Schibsted Grotesk"', 'system-ui', 'sans-serif'] },
+  colors: { pvc: '#F4F6F3', grafito: '#23282B', pino: '#1F5E4B', ocre: '#C98A2B', ladrillo: '#B3402F' }
+} } }
+</script>
+<style type="text/tailwindcss">
+  .campo { @apply w-full rounded-lg border border-grafito/20 bg-white px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-pino; }
+  .btn { @apply w-full rounded-lg bg-pino py-3 font-bold text-white hover:bg-pino/90 disabled:opacity-50; }
+  .tarjeta { @apply rounded-xl bg-white p-4 shadow-sm ring-1 ring-grafito/10 sm:p-5; }
+  .tab { @apply flex-1 rounded-md px-3 py-2 text-sm font-medium; }
+  .tab[aria-selected="true"] { @apply bg-grafito text-white; }
+  label { @apply mb-1 block text-sm font-medium; }
+</style>
+</head>
+<body class="bg-pvc font-sans text-grafito">
+
+<header class="bg-grafito text-white">
+  <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
+    <h1 class="text-xl font-extrabold tracking-tight">Revestir</h1>
+    <nav class="flex rounded-lg bg-white/10 p-1 text-sm" aria-label="Vista">
+      <button data-vista="mostrador" class="rounded-md px-3 py-1.5">Mostrador</button>
+      <button data-vista="deposito" class="rounded-md px-3 py-1.5">Depósito</button>
+    </nav>
+    <div class="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+      <label for="empleado" class="!mb-0 whitespace-nowrap">Empleado (obligatorio)</label>
+      <input id="empleado" required autocomplete="name" placeholder="Tu nombre" class="campo !w-44 text-grafito">
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-6xl space-y-5 px-4 py-5">
+
+  <!-- MOSTRADOR (PC) -->
+  <section id="v-mostrador" class="grid gap-5 lg:grid-cols-[minmax(0,26rem)_1fr]">
+    <div class="tarjeta self-start">
+      <div class="mb-4 flex gap-1 rounded-lg bg-pvc p-1" role="tablist">
+        <button class="tab" role="tab" data-tab="f-venta" aria-selected="true">Venta</button>
+        <button class="tab" role="tab" data-tab="f-corte" aria-selected="false">Corte de barra</button>
+        <button class="tab" role="tab" data-tab="f-retazo" aria-selected="false">Retazo</button>
+      </div>
+
+      <form id="f-venta" data-accion="venta" class="space-y-3">
+        <div><label for="v-prod">Producto</label><select id="v-prod" name="productoId" class="campo" required></select></div>
+        <div><label for="v-cant">Cantidad (unidades o barras enteras)</label><input id="v-cant" name="cantidad" type="number" min="1" step="1" inputmode="numeric" class="campo" required></div>
+        <button class="btn">Registrar venta</button>
+      </form>
+
+      <form id="f-corte" data-accion="corte" class="hidden space-y-3">
+        <div><label for="c-prod">Barra a cortar</label><select id="c-prod" name="productoId" class="campo" required></select></div>
+        <div><label for="c-metros">Metros que se venden</label><input id="c-metros" name="metros" type="number" min="0.01" step="0.01" inputmode="decimal" class="campo" required></div>
+        <div>
+          <div class="flex h-10 overflow-hidden rounded-lg bg-grafito/10" aria-hidden="true">
+            <div id="bar-v" class="bg-pino transition-all" style="width:0"></div>
+            <div id="bar-r" class="bg-ocre transition-all" style="width:0"></div>
+          </div>
+          <p id="bar-txt" class="mt-1.5 text-sm" aria-live="polite"></p>
+          <p class="text-xs text-grafito/60">Verde: vendido. Ocre: sobrante, que se guarda solo como retazo.</p>
+        </div>
+        <button class="btn">Registrar corte y retazo</button>
+      </form>
+
+      <form id="f-retazo" data-accion="venta_retazo" class="hidden space-y-3">
+        <div><label for="r-ret">Retazo</label><select id="r-ret" name="retazoId" class="campo" required></select></div>
+        <div><label for="r-metros">Metros que se venden</label><input id="r-metros" name="metros" type="number" min="0.01" step="0.01" inputmode="decimal" class="campo" required></div>
+        <button class="btn">Vender retazo</button>
+      </form>
+    </div>
+
+    <div class="space-y-5">
+      <div class="tarjeta"><h2 class="mb-1 text-lg font-bold">Stock</h2><ul id="stock-m"></ul></div>
+      <div class="tarjeta"><h2 class="mb-1 text-lg font-bold">Saldos: retazos</h2><ul id="retazos"></ul></div>
+    </div>
+  </section>
+
+  <!-- DEPÓSITO (CELULAR) -->
+  <section id="v-deposito" class="hidden space-y-5">
+    <form id="f-ingreso" data-accion="ingreso" class="tarjeta space-y-3">
+      <h2 class="text-lg font-bold">Ingreso de mercadería</h2>
+      <div><label for="i-prod">Producto</label><select id="i-prod" name="productoId" class="campo" required></select></div>
+      <div><label for="i-cant">Cantidad que entra</label><input id="i-cant" name="cantidad" type="number" min="1" step="1" inputmode="numeric" class="campo" required></div>
+      <button class="btn">Registrar ingreso</button>
+    </form>
+    <form id="f-traslado" data-accion="traslado" class="tarjeta space-y-3">
+      <h2 class="text-lg font-bold">Traslado</h2>
+      <div><label for="t-prod">Producto</label><select id="t-prod" name="productoId" class="campo" required></select></div>
+      <div><label for="t-desde">Sale de</label>
+        <select id="t-desde" name="desde" class="campo"><option value="Deposito">Depósito → Mostrador</option><option value="Mostrador">Mostrador → Depósito</option></select></div>
+      <div><label for="t-cant">Cantidad</label><input id="t-cant" name="cantidad" type="number" min="1" step="1" inputmode="numeric" class="campo" required></div>
+      <button class="btn">Registrar traslado</button>
+    </form>
+    <div class="tarjeta"><h2 class="mb-1 text-lg font-bold">Stock</h2><ul id="stock-d"></ul></div>
+  </section>
+
+  <section class="tarjeta"><h2 class="mb-1 text-lg font-bold">Últimos movimientos</h2><ul id="movs"></ul></section>
+</main>
+
+<div id="aviso" role="status" class="pointer-events-none fixed inset-x-4 bottom-4 mx-auto hidden max-w-md rounded-lg px-4 py-3 text-center font-medium text-white shadow-lg"></div>
+
+<script>
+/* 1) PEGÁ ACÁ la URL de tu App web de Google (termina en /exec) */
+const API_URL = https://script.google.com/macros/s/AKfycbw9E2UQcNrP3j7rHmAB4cYqBSJQ5iw4ULG9aeYzwpQUiSemo5ojwYO439PabJZGCn_z/exec';
+
+const $ = s => document.querySelector(s);
+const fmt = n => Number(n).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let D = { productos: [], retazos: [], movimientos: [] };
+let enviando = false;
+
+function aviso(txt, error) {
+  const a = $('#aviso');
+  a.textContent = txt;
+  a.className = a.className.replace(/bg-\S+/g, '') + (error ? ' bg-ladrillo' : ' bg-pino');
+  a.classList.remove('hidden');
+  clearTimeout(aviso.t);
+  aviso.t = setTimeout(() => a.classList.add('hidden'), 5000);
+}
+
+async function cargar() {
+  try {
+    const j = await (await fetch(API_URL + '?t=' + Date.now())).json();
+    if (!j.ok) throw new Error(j.error);
+    D = j; pintar();
+  } catch (e) { aviso('No se pudo cargar el stock: ' + e.message, true); }
+}
+
+async function enviar(datos) {
+  const emp = $('#empleado').value.trim();
+  if (!emp) { $('#empleado').focus(); aviso('Escribí tu nombre de empleado antes de registrar.', true); return false; }
+  try { localStorage.setItem('empleado', emp); } catch (e) {}
+  if (enviando) return false;
+  enviando = true;
+  document.querySelectorAll('.btn').forEach(b => b.disabled = true);
+  try {
+    const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...datos, empleado: emp }) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    aviso(j.mensaje); await cargar(); return true;
+  } catch (e) { aviso(e.message, true); return false; }
+  finally { enviando = false; document.querySelectorAll('.btn').forEach(b => b.disabled = false); }
+}
+
+const prod = id => D.productos.find(p => p.ID === id);
+
+function opciones(sel, lista, etiqueta) {
+  const el = $(sel), v = el.value;
+  el.innerHTML = lista.map(x => `<option value="${esc(x.ID)}">${esc(etiqueta(x))}</option>`).join('');
+  if (v) el.value = v;
+}
+
+function filaStock(p) {
+  const u = p.Tipo === 'PERFIL' ? `barras de ${fmt(p.Largo_m)} m` : 'unidades';
+  const num = (n, t) => `<span class="w-20 text-right"><b class="text-lg">${fmt(n)}</b><span class="block text-xs text-grafito/60">${t}</span></span>`;
+  return `<li class="flex items-baseline gap-3 border-b border-grafito/10 py-2.5 last:border-0">
+    <span class="flex-1 font-medium">${esc(p.Nombre)}<span class="block text-xs text-grafito/60">${u}</span></span>
+    ${num(p.Stock_Mostrador, 'mostrador')}${num(p.Stock_Deposito, 'depósito')}</li>`;
+}
+
+function pintar() {
+  const P = D.productos, perfiles = P.filter(p => p.Tipo === 'PERFIL');
+  opciones('#v-prod', P, p => `${p.Nombre} (mostrador: ${fmt(p.Stock_Mostrador)})`);
+  opciones('#c-prod', perfiles, p => `${p.Nombre} (mostrador: ${fmt(p.Stock_Mostrador)})`);
+  opciones('#r-ret', D.retazos, r => `${r.Producto} · ${fmt(r.Metros)} m`);
+  opciones('#i-prod', P, p => `${p.Nombre} (depósito: ${fmt(p.Stock_Deposito)})`);
+  opciones('#t-prod', P, p => `${p.Nombre} (M: ${fmt(p.Stock_Mostrador)} · D: ${fmt(p.Stock_Deposito)})`);
+  $('#stock-m').innerHTML = $('#stock-d').innerHTML = P.map(filaStock).join('');
+  $('#retazos').innerHTML = D.retazos.length ? D.retazos.map(r =>
+    `<li class="flex items-baseline gap-3 border-b border-grafito/10 py-2.5 last:border-0">
+      <span class="flex-1 font-medium">${esc(r.Producto)}<span class="block text-xs text-grafito/60">${esc(r.Fecha)} · ${esc(r.Empleado)}</span></span>
+      <b class="text-lg text-ocre">${fmt(r.Metros)} m</b></li>`).join('')
+    : '<li class="py-3 text-sm text-grafito/60">No hay retazos. Aparecen solos cuando se corta una barra.</li>';
+  $('#movs').innerHTML = D.movimientos.length ? D.movimientos.map(m =>
+    `<li class="border-b border-grafito/10 py-2 text-sm last:border-0"><b>${esc(m.Accion)}</b> · ${esc(m.Producto)} · ${fmt(m.Cantidad)}
+      <span class="block text-xs text-grafito/60">${esc(m.Fecha)} · ${esc(m.Empleado)} · ${esc(m.Detalle)}</span></li>`).join('')
+    : '<li class="py-3 text-sm text-grafito/60">Todavía no hay movimientos.</li>';
+  barra();
+}
+
+function barra() {
+  const p = prod($('#c-prod').value), L = p ? Number(p.Largo_m) : 0;
+  const m = parseFloat($('#c-metros').value.replace(',', '.')) || 0, ok = L && m > 0 && m < L, v = ok ? m / L * 100 : 0;
+  $('#bar-v').style.width = v + '%';
+  $('#bar-r').style.width = ok ? (100 - v) + '%' : '0%';
+  $('#bar-txt').textContent = !L ? '' : ok ? `Vendés ${fmt(m)} m y queda un retazo de ${fmt(L - m)} m.` : `Ingresá un valor entre 0 y ${fmt(L)} m.`;
+}
+
+function vista(v) {
+  $('#v-mostrador').classList.toggle('hidden', v !== 'mostrador');
+  $('#v-deposito').classList.toggle('hidden', v !== 'deposito');
+  document.querySelectorAll('[data-vista]').forEach(b => b.classList.toggle('bg-white', b.dataset.vista === v) || b.classList.toggle('text-grafito', b.dataset.vista === v));
+  document.querySelectorAll('[data-vista]').forEach(b => b.classList.toggle('text-grafito', b.dataset.vista === v));
+}
+
+document.querySelectorAll('[data-vista]').forEach(b => b.onclick = () => vista(b.dataset.vista));
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-tab]').forEach(t => {
+    t.setAttribute('aria-selected', t === b);
+    $('#' + t.dataset.tab).classList.toggle('hidden', t !== b);
+  });
+});
+document.querySelectorAll('form').forEach(f => f.addEventListener('submit', async e => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(f)); d.accion = f.dataset.accion;
+  if (await enviar(d)) { f.reset(); barra(); }
+}));
+$('#c-prod').onchange = barra; $('#c-metros').oninput = barra;
+
+try { $('#empleado').value = localStorage.getItem('empleado') || ''; } catch (e) {}
+vista(innerWidth < 768 ? 'deposito' : 'mostrador');
+if (API_URL.startsWith('PEGAR')) aviso('Falta pegar la URL de Google Apps Script en el código (API_URL).', true); else cargar();
+setInterval(() => { if (!enviando && !API_URL.startsWith('PEGAR')) cargar(); }, 30000);
+</script>
+</body>
+</html>
